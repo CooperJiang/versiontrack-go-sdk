@@ -22,22 +22,63 @@ type Config struct {
 	BackupCount int
 }
 
+// VersionDetail 版本详细信息
+type VersionDetail struct {
+	ID          string `json:"id"`
+	ProjectID   string `json:"projectId"`
+	Version     string `json:"version"`
+	VersionCode int    `json:"versionCode"`
+	VersionName string `json:"versionName"`
+	Description string `json:"description"`
+	Changelog   string `json:"changelog"`
+	ForceUpdate bool   `json:"forceUpdate"`
+	MinVersion  string `json:"minVersion"`
+	Status      string `json:"status"`
+	CreatedBy   string `json:"createdBy"`
+	PublishedAt string `json:"publishedAt"`
+}
+
+// UpdateFile 更新文件信息
+type UpdateFile struct {
+	ID                string `json:"id"`
+	VersionID         string `json:"versionId"`
+	FileName          string `json:"fileName"`
+	FilePath          string `json:"filePath"`
+	FileSize          int64  `json:"fileSize"`
+	FileHash          string `json:"fileHash"`
+	Platform          string `json:"platform"`
+	Arch              string `json:"arch"`
+	FileType          string `json:"fileType"`
+	DownloadURL       string `json:"downloadUrl"`
+	IsCompressed      bool   `json:"isCompressed"`
+	CompressionType   string `json:"compressionType"`
+	Signature         string `json:"signature"`
+	SignatureAlgorithm string `json:"signatureAlgorithm"`
+	UploadStatus      string `json:"uploadStatus"`
+}
+
 // UpdateInfo 更新信息
 type UpdateInfo struct {
 	// 是否有更新
 	HasUpdate bool `json:"hasUpdate"`
-	// 最新版本号
-	LatestVersion string `json:"latestVersion"`
-	// 下载URL
-	DownloadURL string `json:"downloadUrl"`
-	// 文件大小
-	FileSize int64 `json:"fileSize"`
-	// MD5哈希值
-	MD5Hash string `json:"md5Hash"`
-	// 发布说明
-	ReleaseNotes string `json:"releaseNotes"`
-	// 发布时间
-	PublishedAt string `json:"publishedAt"`
+	// 最新版本详情
+	LatestVersion *VersionDetail `json:"latestVersion"`
+	// 当前版本
+	CurrentVersion string `json:"currentVersion"`
+	// 更新文件列表
+	UpdateFiles []UpdateFile `json:"updateFiles"`
+	// 是否强制更新
+	IsForced bool `json:"isForced"`
+	// 下载URL (从第一个匹配的文件获取)
+	DownloadURL string `json:"-"`
+	// 文件大小 (从第一个匹配的文件获取)
+	FileSize int64 `json:"-"`
+	// MD5哈希值 (从第一个匹配的文件获取)
+	MD5Hash string `json:"-"`
+	// 发布说明 (从版本详情获取)
+	ReleaseNotes string `json:"-"`
+	// 发布时间 (从版本详情获取)
+	PublishedAt string `json:"-"`
 }
 
 // UpdateRecord 更新记录

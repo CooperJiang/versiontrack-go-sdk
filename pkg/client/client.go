@@ -83,7 +83,33 @@ func (c *Client) CheckForUpdates(ctx context.Context, currentVersion string) (*U
 		return nil, NewClientError("API_ERROR", result.Message, nil)
 	}
 
-	return result.Data, nil
+	updateInfo := result.Data
+	if updateInfo == nil {
+		return nil, NewClientError("API_ERROR", "No update data returned", nil)
+	}
+
+	// 填充兼容字段
+	if updateInfo.LatestVersion != nil {
+		updateInfo.ReleaseNotes = updateInfo.LatestVersion.Changelog
+		updateInfo.PublishedAt = updateInfo.LatestVersion.PublishedAt
+	}
+
+	// 从匹配的文件中获取下载信息
+	for _, file := range updateInfo.UpdateFiles {
+		if file.Platform == c.config.Platform && file.Arch == c.config.Arch {
+			updateInfo.DownloadURL = buildDownloadURL(c.config.ServerURL, file.ID)
+			updateInfo.FileSize = file.FileSize
+			updateInfo.MD5Hash = file.FileHash
+			break
+		}
+	}
+
+	return updateInfo, nil
+}
+
+// buildDownloadURL 构建下载URL
+func buildDownloadURL(serverURL, fileID string) string {
+	return fmt.Sprintf("%s/api/v1/public/versions/files/%s/download", serverURL, fileID)
 }
 
 // Download 下载更新文件
@@ -158,8 +184,12 @@ func (c *Client) Update(ctx context.Context, info *UpdateInfo, downloadPath stri
 	}
 
 	// 4. 记录更新历史
+	var version string
+	if info.LatestVersion != nil {
+		version = info.LatestVersion.Version
+	}
 	record := UpdateRecord{
-		Version:    info.LatestVersion,
+		Version:    version,
 		UpdatedAt:  time.Now(),
 		Status:     "success",
 		BackupPath: backupPath,

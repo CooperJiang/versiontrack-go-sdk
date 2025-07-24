@@ -1,0 +1,50 @@
+# 忽略编译产物和临时文件
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go测试文件
+*.test
+
+# Go覆盖率文件
+*.out
+*.prof
+
+# Go工作区文件
+go.work
+
+# 依赖目录
+vendor/
+
+# IDE文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统文件
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+*.log
+
+# 备份文件
+*.bak
+*.backup
+
+# 构建文件
+build/
+dist/
+bin/

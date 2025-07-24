@@ -8,8 +8,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/lilithgames/versiontrack-go-sdk/internal/utils"
-	"github.com/lilithgames/versiontrack-go-sdk/pkg/client"
+	"github.com/CooperJiang/versiontrack-go-sdk/internal/utils"
+	"github.com/CooperJiang/versiontrack-go-sdk/pkg/client"
 )
 
 var VERSION = "1.0.0"

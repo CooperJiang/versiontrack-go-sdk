@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lilithgames/versiontrack-go-sdk/internal/archive"
-	"github.com/lilithgames/versiontrack-go-sdk/internal/http"
-	"github.com/lilithgames/versiontrack-go-sdk/internal/utils"
+	"github.com/CooperJiang/versiontrack-go-sdk/internal/archive"
+	"github.com/CooperJiang/versiontrack-go-sdk/internal/http"
+	"github.com/CooperJiang/versiontrack-go-sdk/internal/utils"
 )
 
 // Updater 更新器接口

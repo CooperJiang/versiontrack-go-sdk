@@ -17,7 +17,7 @@
 ### 安装
 
 ```bash
-go get github.com/lilithgames/versiontrack-go-sdk
+go get github.com/CooperJiang/versiontrack-go-sdk
 ```
 
 ### 基本使用
@@ -30,8 +30,8 @@ import (
     "log"
     "time"
 
-    "github.com/lilithgames/versiontrack-go-sdk/internal/utils"
-    "github.com/lilithgames/versiontrack-go-sdk/pkg/client"
+    "github.com/CooperJiang/versiontrack-go-sdk/internal/utils"
+    "github.com/CooperJiang/versiontrack-go-sdk/pkg/client"
 )
 
 func main() {

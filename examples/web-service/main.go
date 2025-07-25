@@ -64,12 +64,13 @@ func startUpdateChecker() {
 	// 配置更新客户端
 	config := &client.Config{
 		ServerURL:     "https://your-versiontrack-server.com",
-		ProjectID:     "your-web-service-project-id",
+		APIKey:        "your-api-key-here", // 🆕 使用API密钥替代ProjectID
 		Platform:      utils.GetPlatform(),
 		Arch:          utils.GetArch(),
 		Timeout:       30 * time.Second,
 		PreserveFiles: []string{"config.yaml", "config.yml", "*.conf", "data.db", "logs/*"},
 		BackupCount:   5,
+		UpdateMode:    client.UpdateModeAuto, // 🆕 设置更新模式
 	}
 
 	updater, err := client.NewClient(config)
@@ -96,31 +97,38 @@ func checkAndUpdate(updater *client.Client) {
 
 	log.Println("检查更新中...")
 	
-	updateInfo, err := updater.CheckForUpdates(ctx, VERSION)
+	// 🆕 优先使用新的多版本API
+	updatesInfo, err := updater.CheckForMultipleUpdates(ctx, VERSION)
 	if err != nil {
 		log.Printf("检查更新失败: %v", err)
 		return
 	}
 
-	if !updateInfo.HasUpdate {
+	if !updatesInfo.HasUpdate {
 		log.Println("当前已是最新版本")
 		return
 	}
 
-	log.Printf("发现新版本: %s，准备更新", updateInfo.LatestVersion)
+	log.Printf("发现 %d 个可用更新版本，最新版本: %s", len(updatesInfo.AvailableVersions), updatesInfo.LatestVersion)
 
-	// 下载更新
-	downloadPath := fmt.Sprintf("/tmp/web_service_update_%s.tar.gz", updateInfo.LatestVersion)
-	err = updater.Download(ctx, updateInfo, downloadPath, func(progress *client.DownloadProgress) {
-		if progress.Total > 0 {
-			log.Printf("下载进度: %.1f%%", progress.Percentage)
-		}
-	})
+	// 🆕 检查强制更新
+	if updatesInfo.UpdateStrategy.HasForced {
+		log.Printf("检测到强制更新，最低要求版本: %s", updatesInfo.UpdateStrategy.MinRequiredVersion)
+	}
 
+	// 🆕 获取推荐更新版本
+	recommendedVersion, err := updater.GetRecommendedUpdate(ctx, VERSION)
 	if err != nil {
-		log.Printf("下载更新失败: %v", err)
+		log.Printf("获取推荐版本失败: %v", err)
 		return
 	}
+
+	if recommendedVersion == nil {
+		log.Println("没有推荐的更新版本")
+		return
+	}
+
+	log.Printf("推荐更新到版本: %s", recommendedVersion.Version)
 
 	log.Println("开始执行更新...")
 
@@ -133,8 +141,13 @@ func checkAndUpdate(updater *client.Client) {
 		return
 	}
 
-	// 执行更新
-	err = updater.Update(ctx, updateInfo, downloadPath)
+	// 🆕 使用新的更新方法
+	err = updater.UpdateToVersion(ctx, recommendedVersion.Version, func(progress *client.DownloadProgress) {
+		if progress.Total > 0 {
+			log.Printf("下载进度: %.1f%%", progress.Percentage)
+		}
+	})
+
 	if err != nil {
 		log.Printf("更新失败: %v", err)
 		// 重新启动服务器
@@ -142,10 +155,10 @@ func checkAndUpdate(updater *client.Client) {
 		return
 	}
 
-	log.Printf("更新成功，版本: %s", updateInfo.LatestVersion)
+	log.Printf("更新成功，版本: %s", recommendedVersion.Version)
 	
 	// 更新版本号
-	VERSION = updateInfo.LatestVersion
+	VERSION = recommendedVersion.Version
 
 	// 重新启动服务器
 	go startWebServer()
@@ -160,12 +173,13 @@ func handleManualUpdate(w http.ResponseWriter, r *http.Request) {
 	// 配置更新客户端
 	config := &client.Config{
 		ServerURL:     "https://your-versiontrack-server.com",
-		ProjectID:     "your-web-service-project-id",
+		APIKey:        "your-api-key-here", // 🆕 使用API密钥替代ProjectID
 		Platform:      utils.GetPlatform(),
 		Arch:          utils.GetArch(),
 		Timeout:       30 * time.Second,
 		PreserveFiles: []string{"config.yaml", "config.yml", "*.conf", "data.db", "logs/*"},
 		BackupCount:   5,
+		UpdateMode:    client.UpdateModeManual, // 🆕 手动更新模式
 	}
 
 	updater, err := client.NewClient(config)

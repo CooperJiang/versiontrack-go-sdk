@@ -15,11 +15,26 @@ import (
 
 // Updater 更新器接口
 type Updater interface {
-	// CheckForUpdates 检查是否有可用更新
+	// CheckForUpdates 检查是否有可用更新（旧版本，保持兼容）
 	CheckForUpdates(ctx context.Context, currentVersion string) (*UpdateInfo, error)
+	
+	// CheckForMultipleUpdates 检查多版本更新（新版本）
+	CheckForMultipleUpdates(ctx context.Context, currentVersion string) (*UpdatesInfo, error)
+	
+	// GetRecommendedUpdate 获取推荐更新版本（自动模式）
+	GetRecommendedUpdate(ctx context.Context, currentVersion string) (*VersionInfo, error)
+	
+	// UpdateToVersion 手动选择版本更新
+	UpdateToVersion(ctx context.Context, targetVersion string, callback ProgressCallback) error
+	
+	// HasForcedUpdate 检查是否有强制更新
+	HasForcedUpdate(ctx context.Context, currentVersion string) (*VersionInfo, error)
 	
 	// Download 下载更新文件
 	Download(ctx context.Context, info *UpdateInfo, destPath string, callback ProgressCallback) error
+	
+	// DownloadVersion 下载指定版本
+	DownloadVersion(ctx context.Context, versionInfo *VersionInfo, destPath string, callback ProgressCallback) error
 	
 	// Update 执行更新
 	Update(ctx context.Context, info *UpdateInfo, downloadPath string) error
@@ -66,8 +81,8 @@ func NewClient(config *Config) (*Client, error) {
 
 // CheckForUpdates 检查是否有可用更新
 func (c *Client) CheckForUpdates(ctx context.Context, currentVersion string) (*UpdateInfo, error) {
-	url := fmt.Sprintf("/api/v1/public/versions/check?projectId=%s&platform=%s&arch=%s&currentVersion=%s",
-		c.config.ProjectID, c.config.Platform, c.config.Arch, currentVersion)
+	url := fmt.Sprintf("/api/v1/public/versions/check?platform=%s&arch=%s&currentVersion=%s",
+		c.config.Platform, c.config.Arch, currentVersion)
 
 	var result struct {
 		Code    int         `json:"code"`
@@ -75,7 +90,7 @@ func (c *Client) CheckForUpdates(ctx context.Context, currentVersion string) (*U
 		Data    *UpdateInfo `json:"data"`
 	}
 
-	if err := c.httpClient.Get(ctx, url, &result); err != nil {
+	if err := c.httpClient.GetWithAuth(ctx, url, c.config.APIKey, &result); err != nil {
 		return nil, NewClientError("CHECK_FAILED", "Failed to check for updates", err)
 	}
 
@@ -238,8 +253,8 @@ func validateConfig(config *Config) error {
 	if config.ServerURL == "" {
 		return fmt.Errorf("ServerURL is required")
 	}
-	if config.ProjectID == "" {
-		return fmt.Errorf("ProjectID is required")
+	if config.APIKey == "" {
+		return fmt.Errorf("APIKey is required")
 	}
 	if config.Platform == "" {
 		return fmt.Errorf("Platform is required")
@@ -257,6 +272,22 @@ func validateConfig(config *Config) error {
 	}
 	if !contains(validArchs, config.Arch) {
 		return fmt.Errorf("invalid arch: %s, must be one of %v", config.Arch, validArchs)
+	}
+
+	// 验证更新模式
+	if config.UpdateMode == "" {
+		config.UpdateMode = UpdateModeAuto // 默认自动更新
+	}
+	validModes := []UpdateMode{UpdateModeAuto, UpdateModeManual, UpdateModePrompt}
+	var validMode bool
+	for _, mode := range validModes {
+		if config.UpdateMode == mode {
+			validMode = true
+			break
+		}
+	}
+	if !validMode {
+		return fmt.Errorf("invalid update mode: %s, must be one of %v", config.UpdateMode, validModes)
 	}
 
 	return nil
@@ -381,4 +412,142 @@ func (c *Client) cleanupOldBackups() {
 
 	// 更新历史记录
 	c.history = c.history[len(c.history)-c.config.BackupCount:]
+}
+
+// CheckForMultipleUpdates 检查多版本更新（新版本）
+func (c *Client) CheckForMultipleUpdates(ctx context.Context, currentVersion string) (*UpdatesInfo, error) {
+	url := fmt.Sprintf("/api/v1/public/versions/check?platform=%s&arch=%s&currentVersion=%s",
+		c.config.Platform, c.config.Arch, currentVersion)
+
+	var result struct {
+		Code    int          `json:"code"`
+		Message string       `json:"message"`
+		Data    *UpdatesInfo `json:"data"`
+	}
+
+	if err := c.httpClient.GetWithAuth(ctx, url, c.config.APIKey, &result); err != nil {
+		return nil, NewClientError("CHECK_FAILED", "Failed to check for updates", err)
+	}
+
+	if result.Code != 200 {
+		return nil, NewClientError("API_ERROR", result.Message, nil)
+	}
+
+	if result.Data == nil {
+		return nil, NewClientError("API_ERROR", "No update data returned", nil)
+	}
+
+	return result.Data, nil
+}
+
+// GetRecommendedUpdate 获取推荐更新版本（自动模式）
+func (c *Client) GetRecommendedUpdate(ctx context.Context, currentVersion string) (*VersionInfo, error) {
+	updates, err := c.CheckForMultipleUpdates(ctx, currentVersion)
+	if err != nil {
+		return nil, err
+	}
+
+	if !updates.HasUpdate || len(updates.AvailableVersions) == 0 {
+		return nil, nil
+	}
+
+	// 如果有强制更新，返回最低要求版本
+	if updates.UpdateStrategy.HasForced {
+		for _, version := range updates.AvailableVersions {
+			if version.Version == updates.UpdateStrategy.MinRequiredVersion {
+				return &version, nil
+			}
+		}
+	}
+
+	// 否则返回最新版本（第一个）
+	return &updates.AvailableVersions[0], nil
+}
+
+// UpdateToVersion 手动选择版本更新
+func (c *Client) UpdateToVersion(ctx context.Context, targetVersion string, callback ProgressCallback) error {
+	updates, err := c.CheckForMultipleUpdates(ctx, "")
+	if err != nil {
+		return err
+	}
+
+	// 查找目标版本
+	var targetVersionInfo *VersionInfo
+	for _, version := range updates.AvailableVersions {
+		if version.Version == targetVersion {
+			targetVersionInfo = &version
+			break
+		}
+	}
+
+	if targetVersionInfo == nil {
+		return NewClientError("VERSION_NOT_FOUND", fmt.Sprintf("Version %s not found", targetVersion), nil)
+	}
+
+	// 检查是否在跳过列表中
+	for _, skipVersion := range c.config.SkipVersions {
+		if skipVersion == targetVersion {
+			return NewClientError("VERSION_SKIPPED", fmt.Sprintf("Version %s is in skip list", targetVersion), nil)
+		}
+	}
+
+	// 下载并更新
+	tmpDir := fmt.Sprintf("/tmp/versiontrack_update_%s", targetVersion)
+	downloadPath := filepath.Join(tmpDir, fmt.Sprintf("update_%s.tar.gz", targetVersion))
+	
+	if err := os.MkdirAll(tmpDir, 0755); err != nil {
+		return NewClientError("CREATE_DIR_FAILED", "Failed to create temp directory", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	if err := c.DownloadVersion(ctx, targetVersionInfo, downloadPath, callback); err != nil {
+		return err
+	}
+
+	// 执行更新（转换为UpdateInfo格式）
+	updateInfo := &UpdateInfo{
+		HasUpdate:     true,
+		CurrentVersion: updates.CurrentVersion,
+		DownloadURL:   targetVersionInfo.DownloadURL,
+		FileSize:      targetVersionInfo.FileSize,
+		MD5Hash:       targetVersionInfo.FileHash,
+		ReleaseNotes:  targetVersionInfo.Changelog,
+		IsForced:      targetVersionInfo.IsForced,
+	}
+
+	return c.Update(ctx, updateInfo, downloadPath)
+}
+
+// HasForcedUpdate 检查是否有强制更新
+func (c *Client) HasForcedUpdate(ctx context.Context, currentVersion string) (*VersionInfo, error) {
+	updates, err := c.CheckForMultipleUpdates(ctx, currentVersion)
+	if err != nil {
+		return nil, err
+	}
+
+	if !updates.UpdateStrategy.HasForced {
+		return nil, nil
+	}
+
+	// 返回最低要求的强制更新版本
+	for _, version := range updates.AvailableVersions {
+		if version.IsForced && version.Version == updates.UpdateStrategy.MinRequiredVersion {
+			return &version, nil
+		}
+	}
+
+	return nil, nil
+}
+
+// DownloadVersion 下载指定版本
+func (c *Client) DownloadVersion(ctx context.Context, versionInfo *VersionInfo, destPath string, callback ProgressCallback) error {
+	if versionInfo == nil {
+		return NewClientError("INVALID_PARAMETER", "Version info is nil", nil)
+	}
+
+	if versionInfo.DownloadURL == "" {
+		return NewClientError("INVALID_PARAMETER", "Download URL is empty", nil)
+	}
+
+	return c.httpClient.DownloadWithAuth(ctx, versionInfo.DownloadURL, c.config.APIKey, destPath, versionInfo.FileSize, callback)
 }

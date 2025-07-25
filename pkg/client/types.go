@@ -8,8 +8,8 @@ import (
 type Config struct {
 	// VersionTrack服务器地址
 	ServerURL string
-	// 项目ID
-	ProjectID string
+	// API密钥（替代ProjectID）
+	APIKey string
 	// 平台信息 (windows/linux/macos)
 	Platform string
 	// 架构信息 (amd64/arm64)
@@ -20,7 +20,20 @@ type Config struct {
 	PreserveFiles []string
 	// 备份保留数量
 	BackupCount int
+	// 更新模式
+	UpdateMode UpdateMode
+	// 跳过的版本列表
+	SkipVersions []string
 }
+
+// UpdateMode 更新模式
+type UpdateMode string
+
+const (
+	UpdateModeAuto   UpdateMode = "auto"   // 自动更新到最新版本
+	UpdateModeManual UpdateMode = "manual" // 手动选择版本
+	UpdateModePrompt UpdateMode = "prompt" // 提示用户选择
+)
 
 // VersionDetail 版本详细信息
 type VersionDetail struct {
@@ -57,7 +70,7 @@ type UpdateFile struct {
 	UploadStatus      string `json:"uploadStatus"`
 }
 
-// UpdateInfo 更新信息
+// UpdateInfo 更新信息（旧版本，保持兼容）
 type UpdateInfo struct {
 	// 是否有更新
 	HasUpdate bool `json:"hasUpdate"`
@@ -79,6 +92,38 @@ type UpdateInfo struct {
 	ReleaseNotes string `json:"-"`
 	// 发布时间 (从版本详情获取)
 	PublishedAt string `json:"-"`
+}
+
+// UpdatesInfo 多版本更新信息（新版本）
+type UpdatesInfo struct {
+	// 是否有更新
+	HasUpdate bool `json:"hasUpdate"`
+	// 当前版本
+	CurrentVersion string `json:"currentVersion"`
+	// 最新版本
+	LatestVersion string `json:"latestVersion"`
+	// 可用版本列表
+	AvailableVersions []VersionInfo `json:"availableVersions"`
+	// 更新策略
+	UpdateStrategy UpdateStrategy `json:"updateStrategy"`
+}
+
+// VersionInfo 版本信息
+type VersionInfo struct {
+	Version     string `json:"version"`
+	VersionCode int64  `json:"versionCode"`
+	Changelog   string `json:"changelog"`
+	ReleaseDate string `json:"releaseDate"`
+	IsForced    bool   `json:"isForced"`
+	DownloadURL string `json:"downloadUrl"`
+	FileSize    int64  `json:"fileSize"`
+	FileHash    string `json:"fileHash"`
+}
+
+// UpdateStrategy 更新策略
+type UpdateStrategy struct {
+	HasForced          bool   `json:"hasForced"`
+	MinRequiredVersion string `json:"minRequiredVersion"`
 }
 
 // UpdateRecord 更新记录

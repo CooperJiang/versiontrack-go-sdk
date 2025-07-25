@@ -31,6 +31,11 @@ func NewClient(baseURL string, timeout time.Duration) *Client {
 
 // Get 发送GET请求
 func (c *Client) Get(ctx context.Context, path string, result interface{}) error {
+	return c.GetWithAuth(ctx, path, "", result)
+}
+
+// GetWithAuth 发送带认证的GET请求
+func (c *Client) GetWithAuth(ctx context.Context, path string, apiKey string, result interface{}) error {
 	url := c.baseURL + path
 	
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
@@ -40,6 +45,11 @@ func (c *Client) Get(ctx context.Context, path string, result interface{}) error
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "VersionTrack-Go-SDK/1.0")
+	
+	// 添加API密钥认证
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -63,9 +73,19 @@ func (c *Client) Get(ctx context.Context, path string, result interface{}) error
 
 // DownloadFile 下载文件
 func (c *Client) DownloadFile(ctx context.Context, url, destPath string, callback ProgressCallback) error {
+	return c.DownloadWithAuth(ctx, url, "", destPath, 0, callback)
+}
+
+// DownloadWithAuth 带认证的下载文件
+func (c *Client) DownloadWithAuth(ctx context.Context, url, apiKey, destPath string, expectedSize int64, callback ProgressCallback) error {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// 添加API密钥认证
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
 
 	resp, err := c.httpClient.Do(req)
@@ -85,8 +105,11 @@ func (c *Client) DownloadFile(ctx context.Context, url, destPath string, callbac
 	}
 	defer out.Close()
 
-	// 获取文件大小
+	// 获取文件大小（优先使用期望大小）
 	contentLength := resp.ContentLength
+	if expectedSize > 0 {
+		contentLength = expectedSize
+	}
 
 	// 创建进度追踪器
 	var downloaded int64

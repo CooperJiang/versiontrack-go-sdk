@@ -13,13 +13,15 @@ import (
 func main() {
 	// 配置更新客户端
 	config := &client.Config{
-		ServerURL:     "https://your-versiontrack-server.com",
-		ProjectID:     "your-project-id",
-		Platform:      utils.GetPlatform(), // 自动检测平台
-		Arch:          utils.GetArch(),     // 自动检测架构
+		ServerURL:     "http://localhost:9000",
+		APIKey:        "your-api-key-here",                      // 使用API密钥替代ProjectID
+		Platform:      utils.GetPlatform(),                     // 自动检测平台
+		Arch:          utils.GetArch(),                          // 自动检测架构
 		Timeout:       30 * time.Second,
 		PreserveFiles: []string{"config.yaml", "config.yml", "*.conf", "data.db"},
 		BackupCount:   3,
+		UpdateMode:    client.UpdateModeAuto,                    // 设置更新模式
+		SkipVersions:  []string{},                               // 跳过的版本列表
 	}
 
 	// 创建客户端
@@ -35,46 +37,88 @@ func main() {
 	fmt.Printf("平台: %s\n", config.Platform)
 	fmt.Printf("架构: %s\n", config.Arch)
 
-	// 检查更新
-	fmt.Println("检查更新中...")
+	// 检查多版本更新
+	fmt.Println("检查多版本更新中...")
 	ctx := context.Background()
-	updateInfo, err := updater.CheckForUpdates(ctx, currentVersion)
+	updatesInfo, err := updater.CheckForMultipleUpdates(ctx, currentVersion)
 	if err != nil {
 		log.Fatalf("Failed to check for updates: %v", err)
 	}
 
-	if !updateInfo.HasUpdate {
+	if !updatesInfo.HasUpdate {
 		fmt.Println("当前已是最新版本")
 		return
 	}
 
-	fmt.Printf("发现新版本: %s\n", updateInfo.LatestVersion)
-	fmt.Printf("文件大小: %d bytes\n", updateInfo.FileSize)
-	fmt.Printf("发布说明: %s\n", updateInfo.ReleaseNotes)
-
-	// 下载更新
-	fmt.Println("开始下载更新...")
-	downloadPath := fmt.Sprintf("/tmp/update_%s.tar.gz", updateInfo.LatestVersion)
+	fmt.Printf("发现 %d 个可用更新版本，最新版本: %s\n", len(updatesInfo.AvailableVersions), updatesInfo.LatestVersion)
 	
-	err = updater.Download(ctx, updateInfo, downloadPath, func(progress *client.DownloadProgress) {
-		if progress.Total > 0 {
-			fmt.Printf("\r下载进度: %.1f%% (%d/%d bytes)", progress.Percentage, progress.Downloaded, progress.Total)
+	// 显示所有可用版本
+	for i, version := range updatesInfo.AvailableVersions {
+		fmt.Printf("%d. 版本 %s - %s", i+1, version.Version, version.Changelog)
+		if version.IsForced {
+			fmt.Print(" [强制更新]")
 		}
-	})
-	
-	if err != nil {
-		log.Fatalf("Failed to download update: %v", err)
-	}
-	fmt.Println("\n下载完成")
-
-	// 执行更新
-	fmt.Println("开始执行更新...")
-	err = updater.Update(ctx, updateInfo, downloadPath)
-	if err != nil {
-		log.Fatalf("Failed to update: %v", err)
+		fmt.Println()
 	}
 
-	fmt.Printf("更新成功，已升级到版本: %s\n", updateInfo.LatestVersion)
+	// 检查强制更新
+	if updatesInfo.UpdateStrategy.HasForced {
+		fmt.Printf("检测到强制更新，最低要求版本: %s\n", updatesInfo.UpdateStrategy.MinRequiredVersion)
+	}
+
+	// 根据更新模式执行不同操作
+	switch config.UpdateMode {
+	case client.UpdateModeAuto:
+		// 自动更新到推荐版本
+		recommendedVersion, err := updater.GetRecommendedUpdate(ctx, currentVersion)
+		if err != nil {
+			log.Fatalf("Failed to get recommended update: %v", err)
+		}
+		
+		if recommendedVersion != nil {
+			fmt.Printf("自动更新到推荐版本: %s\n", recommendedVersion.Version)
+			err = updater.UpdateToVersion(ctx, recommendedVersion.Version, func(progress *client.DownloadProgress) {
+				if progress.Total > 0 {
+					fmt.Printf("\r下载进度: %.1f%% (%d/%d bytes)", progress.Percentage, progress.Downloaded, progress.Total)
+				}
+			})
+			if err != nil {
+				log.Fatalf("Failed to update: %v", err)
+			}
+			fmt.Printf("\n自动更新成功，已升级到版本: %s\n", recommendedVersion.Version)
+		}
+		
+	case client.UpdateModeManual:
+		// 手动选择版本（这里选择最新版本作为示例）
+		if len(updatesInfo.AvailableVersions) > 0 {
+			targetVersion := updatesInfo.AvailableVersions[0].Version
+			fmt.Printf("手动选择更新到版本: %s\n", targetVersion)
+			
+			err = updater.UpdateToVersion(ctx, targetVersion, func(progress *client.DownloadProgress) {
+				if progress.Total > 0 {
+					fmt.Printf("\r下载进度: %.1f%% (%d/%d bytes)", progress.Percentage, progress.Downloaded, progress.Total)
+				}
+			})
+			if err != nil {
+				log.Fatalf("Failed to update: %v", err)
+			}
+			fmt.Printf("\n手动更新成功，已升级到版本: %s\n", targetVersion)
+		}
+		
+	default:
+		fmt.Println("提示模式：请手动选择要更新的版本")
+	}
+
+	// 兼容旧版API的示例
+	fmt.Println("\n=== 使用旧版API检查更新 ===")
+	updateInfo, err := updater.CheckForUpdates(ctx, currentVersion)
+	if err != nil {
+		log.Fatalf("Failed to check for updates (legacy): %v", err)
+	}
+
+	if updateInfo.HasUpdate && updateInfo.LatestVersion != nil {
+		fmt.Printf("旧版API检测到更新: %s -> %s\n", currentVersion, updateInfo.LatestVersion.Version)
+	}
 	
 	// 显示更新历史
 	history := updater.GetUpdateHistory()

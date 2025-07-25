@@ -2,7 +2,7 @@
 
 一个用于Go应用程序版本管理和热更新的SDK，与VersionTrack系统集成。
 
-**版本：v1.0.1** - 🆕 全新API设计，支持新的VersionTrack后端系统
+**版本：v1.0.2** - 🆕 简化配置，仅使用API密钥认证
 
 ## 特性
 
@@ -13,7 +13,7 @@
 - 🔄 **回滚支持**：更新失败时自动回滚
 - 📝 **更新历史**：记录所有更新操作的历史
 - 🛡️ **安全验证**：MD5校验确保文件完整性
-- 🔑 **API密钥认证**：使用安全的API密钥进行认证
+- 🔑 **API密钥认证**：仅使用安全的API密钥进行认证，简化配置
 - 🎯 **多版本管理**：支持多版本检查和选择更新
 - ⚡ **强制更新**：支持强制更新策略
 
@@ -22,7 +22,7 @@
 ### 安装
 
 ```bash
-go get github.com/CooperJiang/versiontrack-go-sdk@v1.0.1
+go get github.com/CooperJiang/versiontrack-go-sdk@v1.0.2
 ```
 
 ### 基本使用
@@ -40,16 +40,16 @@ import (
 )
 
 func main() {
-    // 配置客户端
+    // 配置客户端 - 简化配置，仅需API密钥
     config := &client.Config{
         ServerURL:     "https://your-versiontrack-server.com",
-        APIKey:        "your-api-key-here",  // 🆕 使用API密钥替代ProjectID
+        APIKey:        "your-api-key-here",  // 🆕 仅使用API密钥，无需ProjectID
         Platform:      utils.GetPlatform(),  // 自动检测平台
         Arch:          utils.GetArch(),      // 自动检测架构
         Timeout:       30 * time.Second,
         PreserveFiles: []string{"config.yaml", "*.conf"},
         BackupCount:   3,
-        UpdateMode:    client.UpdateModeAuto, // 🆕 支持多种更新模式
+        UpdateMode:    client.UpdateModeAuto,
     }
 
     // 创建客户端
@@ -58,28 +58,26 @@ func main() {
         log.Fatal(err)
     }
 
-    // 🆕 检查多版本更新
+    // 检查更新 - SDK内部使用API密钥进行身份验证
     ctx := context.Background()
-    updatesInfo, err := updater.CheckForMultipleUpdates(ctx, "1.0.0")
+    updateInfo, err := updater.CheckForUpdates(ctx, "1.0.0")
     if err != nil {
         log.Fatal(err)
     }
 
-    if updatesInfo.HasUpdate {
-        // 🆕 获取推荐更新版本
-        recommendedVersion, err := updater.GetRecommendedUpdate(ctx, "1.0.0")
+    if updateInfo.HasUpdate {
+        // 下载更新
+        err = updater.Download(ctx, updateInfo, "/tmp/update.tar.gz", func(progress *client.DownloadProgress) {
+            log.Printf("下载进度: %.1f%%", progress.Percentage)
+        })
         if err != nil {
             log.Fatal(err)
         }
         
-        if recommendedVersion != nil {
-            // 🆕 更新到指定版本
-            err = updater.UpdateToVersion(ctx, recommendedVersion.Version, func(progress *client.DownloadProgress) {
-                log.Printf("下载进度: %.1f%%", progress.Percentage)
-            })
-            if err != nil {
-                log.Fatal(err)
-            }
+        // 执行更新
+        err = updater.Update(ctx, updateInfo, "/tmp/update.tar.gz")
+        if err != nil {
+            log.Fatal(err)
         }
     }
 }
@@ -92,28 +90,28 @@ func main() {
 ```go
 type Config struct {
     ServerURL     string        // VersionTrack服务器地址
-    APIKey        string        // API密钥 🆕 (替代ProjectID)
+    APIKey        string        // API密钥 (必须)
     Platform      string        // 平台 (windows/linux/macos)
     Arch          string        // 架构 (amd64/arm64)
     Timeout       time.Duration // HTTP请求超时时间
     PreserveFiles []string      // 需要保护的文件列表
     BackupCount   int          // 备份保留数量
-    UpdateMode    UpdateMode   // 🆕 更新模式
-    SkipVersions  []string     // 🆕 跳过的版本列表
+    UpdateMode    UpdateMode   // 更新模式
+    SkipVersions  []string     // 跳过的版本列表
 }
 ```
 
 ### 参数说明
 
 - **ServerURL**: VersionTrack服务器的API地址
-- **APIKey**: 🆕 在VersionTrack管理后台项目设置中获取的API密钥
+- **APIKey**: 🆕 在VersionTrack管理后台项目设置中获取的API密钥 (必须)
 - **Platform**: 目标平台，支持 `windows`、`linux`、`macos`
 - **Arch**: 目标架构，支持 `amd64`、`arm64`
 - **Timeout**: HTTP请求超时时间，默认30秒
 - **PreserveFiles**: 更新时不覆盖的文件模式列表，默认包含 `config.yaml`
 - **BackupCount**: 保留的备份数量，默认3个
-- **UpdateMode**: 🆕 更新模式，支持 `auto`/`manual`/`prompt`
-- **SkipVersions**: 🆕 跳过的版本列表，这些版本不会被自动更新
+- **UpdateMode**: 更新模式，支持 `auto`/`manual`/`prompt`
+- **SkipVersions**: 跳过的版本列表，这些版本不会被自动更新
 
 ### 🆕 更新模式说明
 
@@ -131,17 +129,17 @@ const (
 
 ```go
 type Updater interface {
-    // 🆕 新版本API - 支持多版本管理
+    // 基础API - 推荐使用
+    CheckForUpdates(ctx context.Context, currentVersion string) (*UpdateInfo, error)
+    Download(ctx context.Context, info *UpdateInfo, destPath string, callback ProgressCallback) error
+    Update(ctx context.Context, info *UpdateInfo, downloadPath string) error
+    
+    // 高级API - 多版本管理
     CheckForMultipleUpdates(ctx context.Context, currentVersion string) (*UpdatesInfo, error)
     GetRecommendedUpdate(ctx context.Context, currentVersion string) (*VersionInfo, error)
     UpdateToVersion(ctx context.Context, targetVersion string, callback ProgressCallback) error
     HasForcedUpdate(ctx context.Context, currentVersion string) (*VersionInfo, error)
     DownloadVersion(ctx context.Context, versionInfo *VersionInfo, destPath string, callback ProgressCallback) error
-    
-    // 兼容旧版本API - 保持向后兼容
-    CheckForUpdates(ctx context.Context, currentVersion string) (*UpdateInfo, error)
-    Download(ctx context.Context, info *UpdateInfo, destPath string, callback ProgressCallback) error
-    Update(ctx context.Context, info *UpdateInfo, downloadPath string) error
     
     // 通用功能
     GetUpdateHistory() []UpdateRecord
@@ -149,7 +147,24 @@ type Updater interface {
 }
 ```
 
-### 🆕 新版本数据结构
+### 数据结构
+
+#### UpdateInfo - 更新信息
+```go
+type UpdateInfo struct {
+    HasUpdate      bool           `json:"hasUpdate"`      // 是否有更新
+    LatestVersion  *VersionDetail `json:"latestVersion"`  // 最新版本详情
+    CurrentVersion string         `json:"currentVersion"` // 当前版本
+    UpdateFiles    []UpdateFile   `json:"updateFiles"`    // 更新文件列表
+    IsForced       bool          `json:"isForced"`       // 是否强制更新
+    // 以下字段从API响应中自动填充
+    DownloadURL    string        `json:"-"`              // 下载URL
+    FileSize       int64         `json:"-"`              // 文件大小
+    MD5Hash        string        `json:"-"`              // MD5哈希值
+    ReleaseNotes   string        `json:"-"`              // 发布说明
+    PublishedAt    string        `json:"-"`              // 发布时间
+}
+```
 
 #### UpdatesInfo - 多版本更新信息
 ```go
@@ -162,39 +177,15 @@ type UpdatesInfo struct {
 }
 ```
 
-#### VersionInfo - 版本信息
-```go
-type VersionInfo struct {
-    Version     string `json:"version"`     // 版本号
-    VersionCode int64  `json:"versionCode"` // 版本代码
-    Changelog   string `json:"changelog"`   // 更新日志
-    ReleaseDate string `json:"releaseDate"` // 发布日期
-    IsForced    bool   `json:"isForced"`    // 是否强制更新
-    DownloadURL string `json:"downloadUrl"` // 下载地址
-    FileSize    int64  `json:"fileSize"`    // 文件大小
-    FileHash    string `json:"fileHash"`    // 文件哈希
-}
-```
-
-#### UpdateStrategy - 更新策略
-```go
-type UpdateStrategy struct {
-    HasForced          bool   `json:"hasForced"`          // 是否有强制更新
-    MinRequiredVersion string `json:"minRequiredVersion"` // 最低要求版本
-}
-```
-
 ## 使用示例
 
-### 1. 基础示例 - 多版本管理
-
-参见 [examples/basic/main.go](examples/basic/main.go)
+### 1. 基础示例 - 简单更新检查
 
 ```go
-// 配置客户端
+// 配置客户端 - 仅需API密钥
 config := &client.Config{
     ServerURL:    "http://localhost:9000",
-    APIKey:       "your-api-key-here",
+    APIKey:       "your-api-key-here",      // 仅需提供API密钥
     Platform:     utils.GetPlatform(),
     Arch:         utils.GetArch(),
     UpdateMode:   client.UpdateModeAuto,
@@ -202,13 +193,20 @@ config := &client.Config{
 
 updater, _ := client.NewClient(config)
 
-// 🆕 检查多版本更新
-updatesInfo, err := updater.CheckForMultipleUpdates(ctx, "1.0.0")
-if updatesInfo.HasUpdate {
-    // 自动获取推荐版本并更新
-    recommendedVersion, _ := updater.GetRecommendedUpdate(ctx, "1.0.0")
-    if recommendedVersion != nil {
-        updater.UpdateToVersion(ctx, recommendedVersion.Version, progressCallback)
+// 检查更新 - SDK自动使用API密钥进行认证
+updateInfo, err := updater.CheckForUpdates(ctx, "1.0.0")
+if err != nil {
+    log.Fatal(err)
+}
+
+if updateInfo.HasUpdate {
+    log.Printf("发现新版本: %s", updateInfo.LatestVersion.Version)
+    log.Printf("更新说明: %s", updateInfo.LatestVersion.Changelog)
+    
+    // 下载并安装更新
+    err = updater.Download(ctx, updateInfo, "/tmp/update.tar.gz", nil)
+    if err == nil {
+        err = updater.Update(ctx, updateInfo, "/tmp/update.tar.gz")
     }
 }
 ```
@@ -218,21 +216,22 @@ if updatesInfo.HasUpdate {
 参见 [examples/web-service/main.go](examples/web-service/main.go)
 
 这个示例展示了如何在Web服务中集成自动更新功能，包括：
-- 🆕 使用新的API密钥认证
+- 🆕 使用简化的API密钥认证
 - 定时检查更新
 - 优雅关闭服务
 - 手动触发更新的API接口
-- 🆕 强制更新处理
+- 强制更新处理
 
 ### 3. CLI工具示例 - 手动选择版本
 
 参见 [examples/cli-tool/main.go](examples/cli-tool/main.go)
 
 这个示例展示了如何为命令行工具添加更新功能：
-- 🆕 手动选择版本更新
+- 🆕 简化配置，仅使用API密钥
+- 手动选择版本更新
 - 用户交互确认
 - 配置文件保护
-- 🆕 跳过指定版本
+- 跳过指定版本
 
 ## 更新包结构
 
@@ -277,50 +276,55 @@ var (
 - **路径安全**: 防止路径遍历攻击
 - **备份机制**: 更新前自动创建备份
 - **回滚支持**: 更新失败时自动恢复
+- **API密钥认证**: 安全的身份验证机制
 
-## 🆕 v1.0.1 版本变更
+## 版本历史
 
-### 重要变更
-- **API密钥认证**: 使用 `APIKey` 替代 `ProjectID` 进行认证
+### 🆕 v1.0.2 版本变更
+
+#### 重要变更
+- **简化配置**: 移除 `ProjectID` 字段，仅使用 `APIKey` 进行认证
+- **统一认证**: SDK内部统一使用API密钥进行所有API调用的身份验证
+- **精简配置**: 减少配置参数，提高易用性
+- **API优化**: 更新API调用URL，移除projectId参数
+
+#### 配置变更
+```go
+// v1.0.1 (旧版本)
+config := &client.Config{
+    APIKey:    "your-api-key",
+    ProjectID: "your-project-id",  // ❌ 已移除
+}
+
+// v1.0.2 (新版本)
+config := &client.Config{
+    APIKey: "your-api-key",  // ✅ 仅需API密钥
+}
+```
+
+#### 迁移指南
+从 v1.0.1 升级到 v1.0.2：
+
+1. **更新配置结构**：
+   - 移除配置中的 `ProjectID` 字段
+   - 确保 `APIKey` 字段正确设置
+
+2. **API调用变更**：
+   - SDK内部API调用不再使用projectId参数
+   - 服务器通过API密钥自动识别项目信息
+
+3. **无需额外操作**：
+   - 其他API接口保持不变
+   - 功能和使用方式完全兼容
+
+### v1.0.1 版本变更
+
+#### 重要变更
+- **API密钥认证**: 引入 `APIKey` 字段进行认证
 - **多版本管理**: 支持检查和选择多个可用版本
 - **更新模式**: 新增自动、手动、提示三种更新模式
 - **强制更新**: 支持强制更新策略和最低版本要求
 - **版本跳过**: 支持跳过指定版本的更新
-
-### 向后兼容性
-为了保持向后兼容，SDK 同时提供新旧两套 API：
-- 旧版本 API（如 `CheckForUpdates`）仍然可用
-- 新版本 API 提供更丰富的功能
-
-### 迁移指南
-从 v1.0.0 升级到 v1.0.1：
-
-1. **更新配置结构**：
-```go
-// 旧版本
-config := &client.Config{
-    ProjectID: "your-project-id",  // ❌ 已弃用
-}
-
-// 新版本
-config := &client.Config{
-    APIKey: "your-api-key-here",   // ✅ 新的认证方式
-    UpdateMode: client.UpdateModeAuto, // ✅ 新增更新模式
-}
-```
-
-2. **使用新的API方法**：
-```go
-// 推荐使用新的多版本API
-updatesInfo, err := updater.CheckForMultipleUpdates(ctx, currentVersion)
-recommendedVersion, err := updater.GetRecommendedUpdate(ctx, currentVersion)
-err = updater.UpdateToVersion(ctx, targetVersion, callback)
-```
-
-3. **获取API密钥**：
-   - 登录 VersionTrack 管理后台
-   - 进入项目设置页面
-   - 在 API Keys 部分生成新的密钥
 
 ## 最佳实践
 
@@ -329,8 +333,9 @@ err = updater.UpdateToVersion(ctx, targetVersion, callback)
 3. **配置保护**: 合理配置 `PreserveFiles` 以保护重要文件
 4. **错误处理**: 妥善处理各种错误情况
 5. **用户体验**: CLI工具应询问用户确认后再执行更新
-6. **🆕 强制更新**: 对于安全补丁等重要更新，建议使用强制更新策略
-7. **🆕 版本策略**: 合理设置更新模式，平衡自动化和用户控制
+6. **强制更新**: 对于安全补丁等重要更新，建议使用强制更新策略
+7. **版本策略**: 合理设置更新模式，平衡自动化和用户控制
+8. **🆕 简化配置**: 使用v1.0.2的简化配置，减少出错可能性
 
 ## 许可证
 

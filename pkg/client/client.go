@@ -549,5 +549,18 @@ func (c *Client) DownloadVersion(ctx context.Context, versionInfo *VersionInfo, 
 		return NewClientError("INVALID_PARAMETER", "Download URL is empty", nil)
 	}
 
-	return c.httpClient.DownloadWithAuth(ctx, versionInfo.DownloadURL, c.config.APIKey, destPath, versionInfo.FileSize, callback)
+	// 创建HTTP回调适配器
+	var httpCallback func(int64, int64)
+	if callback != nil {
+		httpCallback = func(downloaded, total int64) {
+			progress := &DownloadProgress{
+				Downloaded: downloaded,
+				Total:      total,
+				Percentage: float64(downloaded) / float64(total) * 100,
+			}
+			callback(progress)
+		}
+	}
+	
+	return c.httpClient.DownloadWithAuth(ctx, versionInfo.DownloadURL, c.config.APIKey, destPath, versionInfo.FileSize, httpCallback)
 }

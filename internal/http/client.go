@@ -48,7 +48,7 @@ func (c *Client) GetWithAuth(ctx context.Context, path string, apiKey string, re
 	
 	// 添加API密钥认证
 	if apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+apiKey)
+		req.Header.Set("X-API-Key", apiKey)
 	}
 
 	resp, err := c.httpClient.Do(req)
@@ -85,7 +85,7 @@ func (c *Client) DownloadWithAuth(ctx context.Context, url, apiKey, destPath str
 
 	// 添加API密钥认证
 	if apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+apiKey)
+		req.Header.Set("X-API-Key", apiKey)
 	}
 
 	resp, err := c.httpClient.Do(req)

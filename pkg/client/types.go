@@ -8,7 +8,7 @@ import (
 type Config struct {
 	// VersionTrack服务器地址
 	ServerURL string
-	// API密钥（替代ProjectID）
+	// API密钥（必须）
 	APIKey string
 	// 平台信息 (windows/linux/macos)
 	Platform string

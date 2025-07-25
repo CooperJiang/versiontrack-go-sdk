@@ -103,20 +103,19 @@ func (c *Client) CheckForUpdates(ctx context.Context, currentVersion string) (*U
 		return nil, NewClientError("API_ERROR", "No update data returned", nil)
 	}
 
-	// 填充兼容字段
-	if updateInfo.LatestVersion != nil {
-		updateInfo.ReleaseNotes = updateInfo.LatestVersion.Changelog
-		updateInfo.PublishedAt = updateInfo.LatestVersion.PublishedAt
+	// 填充兼容字段 - 从第一个可用版本获取信息
+	if len(updateInfo.AvailableVersions) > 0 {
+		firstVersion := updateInfo.AvailableVersions[0]
+		updateInfo.ReleaseNotes = firstVersion.Changelog
+		updateInfo.PublishedAt = firstVersion.ReleaseDate
 	}
 
-	// 从匹配的文件中获取下载信息
-	for _, file := range updateInfo.UpdateFiles {
-		if file.Platform == c.config.Platform && file.Arch == c.config.Arch {
-			updateInfo.DownloadURL = buildDownloadURL(c.config.ServerURL, file.ID)
-			updateInfo.FileSize = file.FileSize
-			updateInfo.MD5Hash = file.FileHash
-			break
-		}
+	// 从匹配的文件中获取下载信息 - 使用availableVersions中的信息
+	if len(updateInfo.AvailableVersions) > 0 {
+		firstVersion := updateInfo.AvailableVersions[0]
+		updateInfo.DownloadURL = firstVersion.DownloadURL
+		updateInfo.FileSize = firstVersion.FileSize
+		updateInfo.MD5Hash = firstVersion.FileHash
 	}
 
 	return updateInfo, nil
@@ -199,10 +198,7 @@ func (c *Client) Update(ctx context.Context, info *UpdateInfo, downloadPath stri
 	}
 
 	// 4. 记录更新历史
-	var version string
-	if info.LatestVersion != nil {
-		version = info.LatestVersion.Version
-	}
+	version := info.LatestVersion // 现在是字符串类型
 	record := UpdateRecord{
 		Version:    version,
 		UpdatedAt:  time.Now(),

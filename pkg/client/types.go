@@ -74,8 +74,8 @@ type UpdateFile struct {
 type UpdateInfo struct {
 	// 是否有更新
 	HasUpdate bool `json:"hasUpdate"`
-	// 最新版本详情
-	LatestVersion *VersionDetail `json:"latestVersion"`
+	// 最新版本详情 - 修改为字符串类型
+	LatestVersion string `json:"latestVersion"`
 	// 当前版本
 	CurrentVersion string `json:"currentVersion"`
 	// 更新文件列表
@@ -92,6 +92,10 @@ type UpdateInfo struct {
 	ReleaseNotes string `json:"-"`
 	// 发布时间 (从版本详情获取)
 	PublishedAt string `json:"-"`
+	// 可用版本列表（新增）
+	AvailableVersions []VersionInfo `json:"availableVersions"`
+	// 更新策略（新增）
+	UpdateStrategy UpdateStrategy `json:"updateStrategy"`
 }
 
 // UpdatesInfo 多版本更新信息（新版本）

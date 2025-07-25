@@ -48,7 +48,10 @@ func ExtractTarGz(src, dest string) error {
 		target := filepath.Join(dest, header.Name)
 
 		// 安全检查：防止路径遍历攻击
-		if !strings.HasPrefix(target, filepath.Clean(dest)+string(os.PathSeparator)) {
+		// 先清理路径再进行比较，避免 "./" 等合法相对路径被误判
+		cleanTarget := filepath.Clean(target)
+		cleanDest := filepath.Clean(dest)
+		if !strings.HasPrefix(cleanTarget, cleanDest+string(os.PathSeparator)) && cleanTarget != cleanDest {
 			return fmt.Errorf("invalid file path: %s", header.Name)
 		}
 
@@ -56,18 +59,18 @@ func ExtractTarGz(src, dest string) error {
 		switch header.Typeflag {
 		case tar.TypeDir:
 			// 创建目录
-			if err := os.MkdirAll(target, os.FileMode(header.Mode)); err != nil {
+			if err := os.MkdirAll(cleanTarget, os.FileMode(header.Mode)); err != nil {
 				return fmt.Errorf("failed to create directory: %w", err)
 			}
 
 		case tar.TypeReg:
 			// 创建父目录
-			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+			if err := os.MkdirAll(filepath.Dir(cleanTarget), 0755); err != nil {
 				return fmt.Errorf("failed to create parent directory: %w", err)
 			}
 
 			// 创建文件
-			outFile, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
+			outFile, err := os.OpenFile(cleanTarget, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
 			if err != nil {
 				return fmt.Errorf("failed to create file: %w", err)
 			}

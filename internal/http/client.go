@@ -46,9 +46,9 @@ func (c *Client) GetWithAuth(ctx context.Context, path string, apiKey string, re
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "VersionTrack-Go-SDK/1.0")
 	
-	// 添加API密钥认证
+	// 添加API密钥认证 - 使用Authorization Bearer格式
 	if apiKey != "" {
-		req.Header.Set("X-API-Key", apiKey)
+		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
 
 	resp, err := c.httpClient.Do(req)
@@ -83,9 +83,9 @@ func (c *Client) DownloadWithAuth(ctx context.Context, url, apiKey, destPath str
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// 添加API密钥认证
+	// 添加API密钥认证 - 使用Authorization Bearer格式
 	if apiKey != "" {
-		req.Header.Set("X-API-Key", apiKey)
+		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
 
 	resp, err := c.httpClient.Do(req)

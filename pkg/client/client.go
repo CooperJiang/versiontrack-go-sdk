@@ -141,8 +141,8 @@ func (c *Client) Download(ctx context.Context, info *UpdateInfo, destPath string
 		return NewClientError("CREATE_DIR_FAILED", "Failed to create destination directory", err)
 	}
 
-	// 下载文件
-	if err := c.httpClient.DownloadFile(ctx, info.DownloadURL, destPath, func(downloaded, total int64) {
+	// 下载文件 - 使用带认证的下载
+	if err := c.httpClient.DownloadWithAuth(ctx, info.DownloadURL, c.config.APIKey, destPath, info.FileSize, func(downloaded, total int64) {
 		if callback != nil {
 			progress := &DownloadProgress{
 				Downloaded: downloaded,

@@ -37,18 +37,18 @@ const (
 
 // VersionDetail 版本详细信息
 type VersionDetail struct {
-	ID          string `json:"id"`
-	ProjectID   string `json:"projectId"`
-	Version     string `json:"version"`
-	VersionCode int    `json:"versionCode"`
-	VersionName string `json:"versionName"`
-	Description string `json:"description"`
-	Changelog   string `json:"changelog"`
-	ForceUpdate bool   `json:"forceUpdate"`
-	MinVersion  string `json:"minVersion"`
-	Status      string `json:"status"`
-	CreatedBy   string `json:"createdBy"`
-	PublishedAt string `json:"publishedAt"`
+	ID                 string `json:"id"`
+	ProjectID          string `json:"projectId"`
+	Version            string `json:"version"`
+	VersionWeight      int64  `json:"versionWeight"`      // 版本权重，用于排序比较
+	VersionName        string `json:"versionName"`
+	Changelog          string `json:"changelog"`
+	Status             string `json:"status"`             // 版本状态
+	IsDownloadable     bool   `json:"isDownloadable"`     // 是否可下载
+	DownloadableStatus string `json:"downloadableStatus"` // 下载状态描述
+	ScheduledReleaseAt string `json:"scheduledReleaseAt"` // 预定发布时间（scheduled状态使用）
+	CreatedBy          string `json:"createdBy"`
+	PublishedAt        string `json:"publishedAt"`
 }
 
 // UpdateFile 更新文件信息
@@ -114,14 +114,18 @@ type UpdatesInfo struct {
 
 // VersionInfo 版本信息
 type VersionInfo struct {
-	Version     string `json:"version"`
-	VersionCode int64  `json:"versionCode"`
-	Changelog   string `json:"changelog"`
-	ReleaseDate string `json:"releaseDate"`
-	IsForced    bool   `json:"isForced"`
-	DownloadURL string `json:"downloadUrl"`
-	FileSize    int64  `json:"fileSize"`
-	FileHash    string `json:"fileHash"`
+	Version            string `json:"version"`
+	VersionWeight      int64  `json:"versionWeight"`      // 版本权重，用于排序比较
+	Changelog          string `json:"changelog"`
+	ReleaseDate        string `json:"releaseDate"`
+	DownloadURL        string `json:"downloadUrl"`
+	FileSize           int64  `json:"fileSize"`
+	FileHash           string `json:"fileHash"`
+	Status             string `json:"status"`             // 版本状态 (draft, published, recalled, archived, scheduled)
+	IsDownloadable     bool   `json:"isDownloadable"`     // 是否可下载
+	DownloadableStatus string `json:"downloadableStatus"` // 下载状态描述
+	ScheduledReleaseAt string `json:"scheduledReleaseAt"` // 预定发布时间（scheduled状态使用）
+	IsForced           bool   `json:"isForced"`           // 是否强制更新
 }
 
 // UpdateStrategy 更新策略

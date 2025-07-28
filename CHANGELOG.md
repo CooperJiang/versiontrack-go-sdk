@@ -1,59 +1,60 @@
-# Changelog
+# VersionTrack Go SDK 更新日志
 
-所有对 VersionTrack Go SDK 的重要更改都将记录在此文件中。
+## [v1.0.4] - 2025-07-28
 
-格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
-并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
+### 新增功能
+- 🎉 **预览发布支持**: 新增对VersionTrack预览发布功能的完整支持
+- 📊 **版本权重**: 添加`VersionWeight`字段用于精确的版本排序和比较  
+- 🕒 **预定发布时间**: 支持`ScheduledReleaseAt`字段显示版本的预定发布时间
+- 📋 **版本状态**: 新增`Status`字段显示版本状态 (draft, published, scheduled, recalled, archived)
+- ⬇️ **下载控制**: 添加`IsDownloadable`和`DownloadableStatus`字段控制版本下载权限
 
-## [v1.0.1] - 2024-01-XX
+### 重要变更
+- 🔄 **字段重命名**: `VersionInfo.VersionCode` → `VersionInfo.VersionWeight` (更语义化)
+- 🗑️ **字段移除**: 移除了`VersionDetail`中的一些不常用字段:
+  - `Description` (使用`Changelog`替代)
+  - `ForceUpdate` (使用`IsForced`替代) 
+  - `MinVersion` (简化版本管理)
 
-### 🆕 新增功能
-- **API密钥认证**: 使用更安全的 APIKey 替代 ProjectID 进行认证
-- **多版本管理**: 新增 `CheckForMultipleUpdates()` 方法支持检查多个可用版本
-- **智能推荐**: 新增 `GetRecommendedUpdate()` 方法自动选择推荐版本
-- **手动版本选择**: 新增 `UpdateToVersion()` 方法支持手动指定更新版本
-- **强制更新策略**: 新增 `HasForcedUpdate()` 方法检查强制更新要求
-- **更新模式**: 支持自动、手动、提示三种更新模式
-- **版本跳过**: 支持配置跳过指定版本的更新
-- **增强的示例**: 更新所有示例代码展示新功能
+### API增强
+- ✨ **扩展版本信息**: `VersionInfo`结构体新增多个字段支持预览发布工作流
+- 📱 **兼容性保持**: 保持向后兼容，现有API调用仍然有效
+- 🔐 **认证优化**: 改进API密钥认证和下载权限控制
 
-### 🔄 变更
-- 配置结构中 `ProjectID` 字段已弃用，改为使用 `APIKey`
-- 优化了错误处理和用户体验
-- 改进了示例代码的交互性和可读性
+### 使用示例
 
-### 🔧 修复
-- 修复了下载进度显示的问题
-- 改进了网络超时处理
-- 优化了文件校验逻辑
+```go
+// 检查更新现在会返回更详细的版本信息
+updates, err := client.CheckForMultipleUpdates(ctx, currentVersion)
+if err != nil {
+    log.Fatal(err)
+}
 
-### 📚 文档
-- 全面更新 README.md 文档
-- 新增版本迁移指南
-- 更新所有使用示例
-- 添加最佳实践建议
+for _, version := range updates.AvailableVersions {
+    fmt.Printf("版本: %s\n", version.Version)
+    fmt.Printf("状态: %s\n", version.Status)
+    fmt.Printf("是否可下载: %v\n", version.IsDownloadable)
+    fmt.Printf("下载状态: %s\n", version.DownloadableStatus)
+    
+    if version.ScheduledReleaseAt != "" {
+        fmt.Printf("预定发布时间: %s\n", version.ScheduledReleaseAt)
+    }
+}
+```
 
-### ⚠️ 弃用警告
-- `ProjectID` 配置参数已弃用，请使用 `APIKey`
-- 旧版本 API 仍然可用但建议迁移到新版本
+### 升级指南
 
-### 🚀 向后兼容
-- 保持与 v1.0.0 的完全向后兼容
-- 旧版本 API（如 `CheckForUpdates`）继续可用
-- 逐步迁移策略，无需强制升级
+从v1.0.3升级到v1.0.4：
+
+1. **字段名变更**: 如果直接访问`VersionInfo.VersionCode`，请改为`VersionInfo.VersionWeight`
+2. **新字段利用**: 利用新的状态和下载控制字段优化用户体验
+3. **预览发布**: 可以显示预览版本但控制其下载权限
+
+### 兼容性
+- ✅ Go 1.21+
+- ✅ 向后兼容v1.0.3的API调用
+- ✅ 支持VersionTrack服务端v1.5.0+
 
 ---
 
-## [v1.0.0] - 2024-01-XX
-
-### 🎉 首次发布
-- 基础的版本检查和更新功能
-- 支持 Windows、Linux、macOS 平台
-- tar.gz 格式的更新包支持
-- 文件保护和备份机制
-- MD5 校验确保文件完整性
-- 自动回滚功能
-- 基础示例和文档
-
-[v1.0.1]: https://github.com/CooperJiang/versiontrack-go-sdk/compare/v1.0.0...v1.0.1
-[v1.0.0]: https://github.com/CooperJiang/versiontrack-go-sdk/releases/tag/v1.0.0
+**完整更新详情请参考**: [GitHub Releases](https://github.com/CooperJiang/versiontrack-go-sdk/releases/tag/v1.0.4)
